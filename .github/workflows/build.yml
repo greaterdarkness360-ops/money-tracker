@@ -35,6 +35,21 @@ jobs:
           mv pubspec.yaml.bak pubspec.yaml
           mv lib/main.dart.bak lib/main.dart
           sed -i '/<manifest/a \    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"\/>' android/app/src/main/AndroidManifest.xml
+          python3 -c "
+          import os
+          target = 'android/app/build.gradle.kts' if os.path.exists('android/app/build.gradle.kts') else 'android/app/build.gradle'
+          if os.path.exists(target):
+              with open(target, 'r') as f:
+                  c = f.read()
+              if target.endswith('.kts'):
+                  c = c.replace('compileOptions {', 'compileOptions {\n        isCoreLibraryDesugaringEnabled = true')
+                  c = c.replace('dependencies {', 'dependencies {\n    coreLibraryDesugaring(\"com.android.tools:desugar_jdk_libs:2.0.4\")') if 'dependencies {' in c else c + '\ndependencies {\n    coreLibraryDesugaring(\"com.android.tools:desugar_jdk_libs:2.0.4\")\n}\n'
+              else:
+                  c = c.replace('compileOptions {', 'compileOptions {\n        coreLibraryDesugaringEnabled true')
+                  c = c.replace('dependencies {', 'dependencies {\n    coreLibraryDesugaring \'com.android.tools:desugar_jdk_libs:2.0.4\'') if 'dependencies {' in c else c + '\ndependencies {\n    coreLibraryDesugaring \'com.android.tools:desugar_jdk_libs:2.0.4\'\n}\n'
+              with open(target, 'w') as f:
+                  f.write(c)
+          "
           flutter pub get
 
       - name: Build APK Release
