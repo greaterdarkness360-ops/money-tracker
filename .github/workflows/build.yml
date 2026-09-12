@@ -34,6 +34,7 @@ jobs:
           flutter create --platforms=android --org=com.natanael.moneytracker .
           mv pubspec.yaml.bak pubspec.yaml
           mv lib/main.dart.bak lib/main.dart
+          sed -i '/<manifest/a \    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"\/>' android/app/src/main/AndroidManifest.xml
           flutter pub get
 
       - name: Build APK Release
@@ -49,9 +50,9 @@ jobs:
         uses: softprops/action-gh-release@v2
         if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.event_name == 'workflow_dispatch'
         with:
-          tag_name: v1.0.0
-          name: Money Tracker by Natanael v1.0.0
-          body: "Aplikasi Money Tracker by Natanael untuk Android. 100% Offline."
+          tag_name: v2.1.0
+          name: Money Tracker by Natanael v2.1.0
+          body: "Aplikasi Money Tracker MT by Natanael untuk Android. Fitur: Notifikasi Cepat di Atas Layar (+ Pengeluaran & + Pemasukan)."
           files: build/app/outputs/flutter-apk/app-release.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
