@@ -454,6 +454,8 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     }
 
+    const dayNames = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'];
+
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 80),
       children: [
@@ -477,12 +479,12 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 const SizedBox(height: 4),
                 const Text(
-                  'Perbandingan Pemasukan (Hijau) vs Pengeluaran (Merah)',
+                  'Pemasukan (Hijau) vs Pengeluaran (Merah)',
                   style: TextStyle(fontSize: 12, color: Colors.grey),
                 ),
                 const SizedBox(height: 20),
                 SizedBox(
-                  height: 180,
+                  height: 150,
                   width: double.infinity,
                   child: CustomPaint(
                     painter: BarChartPainter(
@@ -491,6 +493,13 @@ class _HomeScreenState extends State<HomeScreen> {
                       expenses: dailyExpenses,
                     ),
                   ),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: last7Days.map((d) {
+                    return Text(dayNames[d.weekday - 1], style: const TextStyle(fontSize: 11, color: Colors.grey));
+                  }).toList(),
                 ),
               ],
             ),
@@ -518,12 +527,12 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 const SizedBox(height: 4),
                 const Text(
-                  'Tren fluktuasi pengeluaran Anda dalam 7 hari terakhir',
+                  'Tren fluktuasi pengeluaran 7 hari terakhir',
                   style: TextStyle(fontSize: 12, color: Colors.grey),
                 ),
                 const SizedBox(height: 20),
                 SizedBox(
-                  height: 180,
+                  height: 150,
                   width: double.infinity,
                   child: CustomPaint(
                     painter: LineChartPainter(
@@ -531,6 +540,13 @@ class _HomeScreenState extends State<HomeScreen> {
                       values: dailyExpenses,
                     ),
                   ),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: last7Days.map((d) {
+                    return Text(dayNames[d.weekday - 1], style: const TextStyle(fontSize: 11, color: Colors.grey));
+                  }).toList(),
                 ),
               ],
             ),
@@ -641,7 +657,6 @@ class BarChartPainter extends CustomPainter {
 
     final incomePaint = Paint()..color = const Color(0xFF10B981);
     final expensePaint = Paint()..color = const Color(0xFFEF4444);
-    final textPainter = TextPainter(textDirection: TextDirection.ltr);
 
     final slotWidth = size.width / dates.length;
     final barWidth = (slotWidth - 12) / 2;
@@ -651,31 +666,22 @@ class BarChartPainter extends CustomPainter {
       final inc = incomes[d] ?? 0;
       final exp = expenses[d] ?? 0;
 
-      final incHeight = (inc / maxVal) * (size.height - 30);
-      final expHeight = (exp / maxVal) * (size.height - 30);
+      final incHeight = (inc / maxVal) * size.height;
+      final expHeight = (exp / maxVal) * size.height;
 
       final x = i * slotWidth + 6;
 
       final incRect = RRect.fromRectAndRadius(
-        Rect.fromLTWH(x, (size.height - 30) - incHeight, barWidth, incHeight),
+        Rect.fromLTWH(x, size.height - incHeight, barWidth, incHeight),
         const Radius.circular(4),
       );
       canvas.drawRRect(incRect, incomePaint);
 
       final expRect = RRect.fromRectAndRadius(
-        Rect.fromLTWH(x + barWidth + 2, (size.height - 30) - expHeight, barWidth, expHeight),
+        Rect.fromLTWH(x + barWidth + 2, size.height - expHeight, barWidth, expHeight),
         const Radius.circular(4),
       );
       canvas.drawRRect(expRect, expensePaint);
-
-      const days = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'];
-      final dayLabel = days[d.weekday - 1];
-      textPainter.text = TextSpan(
-        text: dayLabel,
-        style: const TextStyle(fontSize: 11, color: Colors.grey),
-      );
-      textPainter.layout();
-      textPainter.paint(canvas, Offset(x + (slotWidth / 2) - (textPainter.width / 2) - 3, size.height - 20));
     }
   }
 
@@ -711,7 +717,7 @@ class LineChartPainter extends CustomPainter {
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
         colors: [Colors.orange.withOpacity(0.3), Colors.orange.withOpacity(0.0)],
-      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height - 30));
+      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height));
 
     final slotWidth = size.width / (dates.length - 1);
     final path = Path();
@@ -722,13 +728,13 @@ class LineChartPainter extends CustomPainter {
     for (int i = 0; i < dates.length; i++) {
       final d = dates[i];
       final val = values[d] ?? 0;
-      final y = (size.height - 30) - ((val / maxVal) * (size.height - 40));
+      final y = size.height - ((val / maxVal) * (size.height - 20));
       final x = i * slotWidth;
       points.add(Offset(x, y));
 
       if (i == 0) {
         path.moveTo(x, y);
-        fillPath.moveTo(x, size.height - 30);
+        fillPath.moveTo(x, size.height);
         fillPath.lineTo(x, y);
       } else {
         path.lineTo(x, y);
@@ -736,26 +742,15 @@ class LineChartPainter extends CustomPainter {
       }
     }
 
-    fillPath.lineTo(size.width, size.height - 30);
+    fillPath.lineTo(size.width, size.height);
     fillPath.close();
 
     canvas.drawPath(fillPath, fillPaint);
     canvas.drawPath(path, linePaint);
 
-    final textPainter = TextPainter(textDirection: TextDirection.ltr);
-
     for (int i = 0; i < points.length; i++) {
       canvas.drawCircle(points[i], 5, dotPaint);
       canvas.drawCircle(points[i], 2.5, dotInnerPaint);
-
-      const days = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'];
-      final dayLabel = days[dates[i].weekday - 1];
-      textPainter.text = TextSpan(
-        text: dayLabel,
-        style: const TextStyle(fontSize: 11, color: Colors.grey),
-      );
-      textPainter.layout();
-      textPainter.paint(canvas, Offset(points[i].dx - (textPainter.width / 2), size.height - 20));
     }
   }
 
