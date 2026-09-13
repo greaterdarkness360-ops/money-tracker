@@ -756,43 +756,142 @@ class _MainContainerScreenState extends State<MainContainerScreen> with WidgetsB
   }
 
   void _showMonthPicker() {
+    int pickerYear = _selectedMonth.year;
+
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
       builder: (ctx) {
-        final now = DateTime.now();
-        final monthsList = List.generate(12, (i) {
-          return DateTime(now.year, now.month - i, 1);
-        });
-        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+        return StatefulBuilder(
+          builder: (ctx, setPickerState) {
+            const shortNames = [
+              'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun',
+              'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'
+            ];
 
-        return Container(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('Pilih Periode Bulan', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: monthsList.map((m) {
-                  final isSelected = m.year == _selectedMonth.year && m.month == _selectedMonth.month;
-                  return ChoiceChip(
-                    label: Text('${monthNames[m.month - 1]} ${m.year}'),
-                    selected: isSelected,
-                    selectedColor: const Color(0xFF86EFAC),
-                    onSelected: (sel) {
-                      if (sel) {
-                        setState(() => _selectedMonth = m);
-                        Navigator.pop(ctx);
-                      }
+            return Container(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[300],
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Pilih Periode Bulan & Tahun',
+                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF86EFAC).withOpacity(0.25),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.arrow_back_ios_new, size: 18),
+                          onPressed: () => setPickerState(() => pickerYear--),
+                        ),
+                        Text(
+                          '$pickerYear',
+                          style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF064E3B),
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.arrow_forward_ios, size: 18),
+                          onPressed: () => setPickerState(() => pickerYear++),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  GridView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 3,
+                      childAspectRatio: 2.2,
+                      crossAxisSpacing: 10,
+                      mainAxisSpacing: 10,
+                    ),
+                    itemCount: 12,
+                    itemBuilder: (ctx, idx) {
+                      final monthNum = idx + 1;
+                      final isSelected = pickerYear == _selectedMonth.year &&
+                          monthNum == _selectedMonth.month;
+
+                      return InkWell(
+                        onTap: () {
+                          setState(() {
+                            _selectedMonth = DateTime(pickerYear, monthNum, 1);
+                          });
+                          Navigator.pop(ctx);
+                        },
+                        borderRadius: BorderRadius.circular(12),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? const Color(0xFF4ADE80)
+                                : Theme.of(context).brightness == Brightness.light
+                                    ? Colors.grey[100]
+                                    : Colors.grey[800],
+                            borderRadius: BorderRadius.circular(12),
+                            border: isSelected
+                                ? Border.all(color: const Color(0xFF16A34A), width: 1.5)
+                                : null,
+                          ),
+                          child: Center(
+                            child: Text(
+                              shortNames[idx],
+                              style: TextStyle(
+                                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                                color: isSelected
+                                    ? const Color(0xFF064E3B)
+                                    : null,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
                     },
-                  );
-                }).toList(),
+                  ),
+                  const SizedBox(height: 16),
+                  TextButton.icon(
+                    onPressed: () {
+                      final now = DateTime.now();
+                      setState(() {
+                        _selectedMonth = DateTime(now.year, now.month, 1);
+                      });
+                      Navigator.pop(ctx);
+                    },
+                    icon: const Icon(Icons.today, size: 16, color: Color(0xFF16A34A)),
+                    label: const Text(
+                      'Kembali ke Bulan Ini',
+                      style: TextStyle(color: Color(0xFF16A34A), fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
+            );
+          },
         );
       },
     );
@@ -824,6 +923,144 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
   bool _isExpense = true;
   int _chartType = 0;
 
+  void _showAnalyticsMonthPicker(BuildContext context) {
+    int pickerYear = widget.selectedMonth.year;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setPickerState) {
+            const shortNames = [
+              'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun',
+              'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'
+            ];
+
+            return Container(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[300],
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Pilih Periode Bulan & Tahun',
+                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF86EFAC).withOpacity(0.25),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.arrow_back_ios_new, size: 18),
+                          onPressed: () => setPickerState(() => pickerYear--),
+                        ),
+                        Text(
+                          '$pickerYear',
+                          style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF064E3B),
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.arrow_forward_ios, size: 18),
+                          onPressed: () => setPickerState(() => pickerYear++),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  GridView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 3,
+                      childAspectRatio: 2.2,
+                      crossAxisSpacing: 10,
+                      mainAxisSpacing: 10,
+                    ),
+                    itemCount: 12,
+                    itemBuilder: (ctx, idx) {
+                      final monthNum = idx + 1;
+                      final isSelected = pickerYear == widget.selectedMonth.year &&
+                          monthNum == widget.selectedMonth.month;
+
+                      return InkWell(
+                        onTap: () {
+                          widget.onMonthChanged(DateTime(pickerYear, monthNum, 1));
+                          Navigator.pop(ctx);
+                        },
+                        borderRadius: BorderRadius.circular(12),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? const Color(0xFF4ADE80)
+                                : Theme.of(context).brightness == Brightness.light
+                                    ? Colors.grey[100]
+                                    : Colors.grey[800],
+                            borderRadius: BorderRadius.circular(12),
+                            border: isSelected
+                                ? Border.all(color: const Color(0xFF16A34A), width: 1.5)
+                                : null,
+                          ),
+                          child: Center(
+                            child: Text(
+                              shortNames[idx],
+                              style: TextStyle(
+                                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                                color: isSelected
+                                    ? const Color(0xFF064E3B)
+                                    : null,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  TextButton.icon(
+                    onPressed: () {
+                      final now = DateTime.now();
+                      widget.onMonthChanged(DateTime(now.year, now.month, 1));
+                      Navigator.pop(ctx);
+                    },
+                    icon: const Icon(Icons.today, size: 16, color: Color(0xFF16A34A)),
+                    label: const Text(
+                      'Kembali ke Bulan Ini',
+                      style: TextStyle(color: Color(0xFF16A34A), fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final filtered = widget.transactions.where((tx) => tx.isExpense == _isExpense).toList();
@@ -848,6 +1085,12 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
             const Text('Money Tracker MT by Natanael', style: TextStyle(fontSize: 11, color: Color(0xFF065F46))),
           ],
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.calendar_month_outlined),
+            onPressed: () => _showAnalyticsMonthPicker(context),
+          ),
+        ],
       ),
       body: ListView(
         padding: const EdgeInsets.only(bottom: 80),
@@ -913,21 +1156,20 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
             ),
           ),
           Container(
-            height: 45,
+            height: 48,
             color: Theme.of(context).scaffoldBackgroundColor,
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              itemCount: 6,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              itemCount: 13,
               itemBuilder: (ctx, i) {
-                final now = DateTime.now();
-                final m = DateTime(now.year, now.month - (5 - i), 1);
+                final m = DateTime(widget.selectedMonth.year, widget.selectedMonth.month - 6 + i, 1);
                 final isSelected = m.year == widget.selectedMonth.year && m.month == widget.selectedMonth.month;
 
                 return GestureDetector(
                   onTap: () => widget.onMonthChanged(m),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                     decoration: BoxDecoration(
                       border: isSelected
                           ? const Border(bottom: BorderSide(color: Color(0xFF16A34A), width: 3))
@@ -1736,6 +1978,7 @@ class _InputTransactionBottomSheetState extends State<InputTransactionBottomShee
   final _titleCtrl = TextEditingController();
   String _wallet = 'Tunai';
   final _wallets = ['Tunai', 'Rekening Bank', 'E-Wallet'];
+  DateTime _transactionDate = DateTime.now();
 
   @override
   Widget build(BuildContext context) {
@@ -1789,6 +2032,53 @@ class _InputTransactionBottomSheetState extends State<InputTransactionBottomShee
             items: _wallets.map((w) => DropdownMenuItem(value: w, child: Text(w))).toList(),
             onChanged: (v) => setState(() => _wallet = v!),
           ),
+          const SizedBox(height: 12),
+          // Pemilih Tanggal Bebas (Date & Time Picker)
+          InkWell(
+            onTap: () async {
+              final pickedDate = await showDatePicker(
+                context: context,
+                initialDate: _transactionDate,
+                firstDate: DateTime(2020),
+                lastDate: DateTime(2050),
+              );
+              if (pickedDate != null) {
+                final pickedTime = await showTimePicker(
+                  context: context,
+                  initialTime: TimeOfDay.fromDateTime(_transactionDate),
+                );
+                setState(() {
+                  _transactionDate = DateTime(
+                    pickedDate.year,
+                    pickedDate.month,
+                    pickedDate.day,
+                    pickedTime?.hour ?? _transactionDate.hour,
+                    pickedTime?.minute ?? _transactionDate.minute,
+                  );
+                });
+              }
+            },
+            borderRadius: BorderRadius.circular(8),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.grey.shade400),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.calendar_today, size: 18, color: Color(0xFF16A34A)),
+                  const SizedBox(width: 10),
+                  Text(
+                    'Tanggal: ${DateFormat('dd MMM yyyy, HH:mm').format(_transactionDate)}',
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                  ),
+                  const Spacer(),
+                  const Text('Ubah', style: TextStyle(color: Color(0xFF16A34A), fontWeight: FontWeight.bold, fontSize: 12)),
+                ],
+              ),
+            ),
+          ),
           const SizedBox(height: 16),
           SizedBox(
             width: double.infinity,
@@ -1810,7 +2100,7 @@ class _InputTransactionBottomSheetState extends State<InputTransactionBottomShee
                   isExpense: widget.isExpense,
                   category: widget.category.name,
                   wallet: _wallet,
-                  date: DateTime.now(),
+                  date: _transactionDate,
                 );
                 widget.onSave(newTx);
               },
@@ -2080,7 +2370,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   const SizedBox(height: 2),
                   const Text('by Natanael', style: TextStyle(fontSize: 13, color: Color(0xFF16A34A), fontWeight: FontWeight.bold)),
                   const SizedBox(height: 10),
-                  Text('Versi 2.1.0 • 100% Offline', style: TextStyle(fontSize: 11, color: Colors.grey[600])),
+                  Text('Versi 2.2.0 • 100% Offline', style: TextStyle(fontSize: 11, color: Colors.grey[600])),
                 ],
               ),
             ),
