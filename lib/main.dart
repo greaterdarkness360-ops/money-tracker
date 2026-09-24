@@ -2528,7 +2528,7 @@ class _ExportReportScreenState extends State<ExportReportScreen> {
     doc.writeln('</style></head><body>');
 
     doc.writeln('<div class="header-title">Laporan Arus Kas &amp; Analisis Keuangan</div>');
-    doc.writeln('<div class="header-sub"><b>Aplikasi:</b> Money Tracker (MT) &nbsp;•&nbsp; <b>Periode:</b> $totalDays Hari ($periodLabel) &nbsp;•&nbsp; <b>Pengguna:</b> Natanael &nbsp;•&nbsp; <b>Dibuat:</b> ${DateFormat("dd/MM/yyyy HH:mm").format(DateTime.now())}</div>');
+    doc.writeln('<div class="header-sub"><b>Aplikasi:</b> Money Tracker (MT) &nbsp;•&nbsp; <b>Periode:</b> $totalDays Hari ($_periodLabel) &nbsp;•&nbsp; <b>Pengguna:</b> Natanael &nbsp;•&nbsp; <b>Dibuat:</b> ${DateFormat("dd/MM/yyyy HH:mm").format(DateTime.now())}</div>');
     doc.writeln('<hr class="divider">');
 
     doc.writeln('<div class="kpi-grid">');
