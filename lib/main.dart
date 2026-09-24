@@ -215,15 +215,22 @@ class Transaction {
         'date': date.toIso8601String(),
       };
 
-  factory Transaction.fromJson(Map<String, dynamic> json) => Transaction(
-        id: json['id'] as String,
-        title: json['title'] as String,
-        amount: (json['amount'] as num).toDouble(),
-        isExpense: json['isExpense'] as bool,
-        category: json['category'] as String,
-        wallet: (json['wallet'] as String?) ?? 'Tunai',
-        date: DateTime.parse(json['date'] as String),
-      );
+  factory Transaction.fromJson(Map<String, dynamic> json) {
+    String rawWallet = (json['wallet'] as String?) ?? 'Tunai';
+    // Otomatis konversi E-Wallet / Rekening Bank menjadi Digital untuk kompatibilitas data lama
+    if (rawWallet == 'E-Wallet' || rawWallet == 'Rekening Bank') {
+      rawWallet = 'Digital';
+    }
+    return Transaction(
+      id: json['id'] as String,
+      title: json['title'] as String,
+      amount: (json['amount'] as num).toDouble(),
+      isExpense: json['isExpense'] as bool,
+      category: json['category'] as String,
+      wallet: rawWallet,
+      date: DateTime.parse(json['date'] as String),
+    );
+  }
 }
 
 // ---------------- MODEL KATEGORI KUSTOM ----------------
@@ -272,6 +279,7 @@ class _MainContainerScreenState extends State<MainContainerScreen> with WidgetsB
   List<CategoryItem> _categories = [];
   bool _isLoading = true;
   DateTime _selectedMonth = DateTime.now();
+  String _selectedWalletFilter = 'Semua';
 
   @override
   void initState() {
@@ -399,7 +407,10 @@ class _MainContainerScreenState extends State<MainContainerScreen> with WidgetsB
 
   List<Transaction> get _filteredTransactions {
     return _transactions.where((tx) {
-      return tx.date.year == _selectedMonth.year && tx.date.month == _selectedMonth.month;
+      final monthMatch = tx.date.year == _selectedMonth.year && tx.date.month == _selectedMonth.month;
+      if (!monthMatch) return false;
+      if (_selectedWalletFilter == 'Semua') return true;
+      return tx.wallet.toLowerCase() == _selectedWalletFilter.toLowerCase();
     }).toList();
   }
 
@@ -520,7 +531,7 @@ class _MainContainerScreenState extends State<MainContainerScreen> with WidgetsB
             top: MediaQuery.of(context).padding.top + 8,
             left: 16,
             right: 16,
-            bottom: 16,
+            bottom: 12,
           ),
           child: Column(
             children: [
@@ -548,11 +559,11 @@ class _MainContainerScreenState extends State<MainContainerScreen> with WidgetsB
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
-                        'Pengelola Keuangan',
+                        'Money Tracker',
                         style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
                       ),
                       Text(
-                        'by Natanael',
+                        'Catatan Keuangan Natanael',
                         style: TextStyle(
                           fontSize: 11,
                           color: Theme.of(context).brightness == Brightness.light
@@ -565,12 +576,17 @@ class _MainContainerScreenState extends State<MainContainerScreen> with WidgetsB
                   ),
                   const Spacer(),
                   IconButton(
+                    icon: const Icon(Icons.description_outlined),
+                    tooltip: 'Buka Menu Ekspor',
+                    onPressed: () => setState(() => _tabIndex = 2),
+                  ),
+                  IconButton(
                     icon: const Icon(Icons.calendar_month_outlined),
                     onPressed: _showMonthPicker,
                   ),
                 ],
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
               Row(
                 children: [
                   InkWell(
@@ -595,13 +611,13 @@ class _MainContainerScreenState extends State<MainContainerScreen> with WidgetsB
                       ),
                     ),
                   ),
-                  const SizedBox(width: 16),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text('Pengeluaran', style: TextStyle(fontSize: 11, color: Colors.grey)),
-                        Text(formatRp(_monthExpense), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                        Text(formatRp(_monthExpense), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.redAccent)),
                       ],
                     ),
                   ),
@@ -610,7 +626,7 @@ class _MainContainerScreenState extends State<MainContainerScreen> with WidgetsB
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text('Pemasukan', style: TextStyle(fontSize: 11, color: Colors.grey)),
-                        Text(formatRp(_monthIncome), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                        Text(formatRp(_monthIncome), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF16A34A))),
                       ],
                     ),
                   ),
@@ -623,13 +639,24 @@ class _MainContainerScreenState extends State<MainContainerScreen> with WidgetsB
                           formatRp(_monthBalance),
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
-                            fontSize: 14,
+                            fontSize: 13,
                             color: _monthBalance >= 0 ? const Color(0xFF047857) : Colors.red,
                           ),
                         ),
                       ],
                     ),
                   ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              // Filter Cepat Dompet: Semua, Tunai, Digital
+              Row(
+                children: [
+                  _buildWalletFilterChip('Semua'),
+                  const SizedBox(width: 8),
+                  _buildWalletFilterChip('Tunai'),
+                  const SizedBox(width: 8),
+                  _buildWalletFilterChip('Digital'),
                 ],
               ),
             ],
@@ -687,6 +714,7 @@ class _MainContainerScreenState extends State<MainContainerScreen> with WidgetsB
                           ),
                         ),
                         ...txs.map((tx) {
+                          final isDigital = tx.wallet.toLowerCase() == 'digital';
                           return ListTile(
                             leading: CircleAvatar(
                               backgroundColor: tx.isExpense
@@ -702,9 +730,27 @@ class _MainContainerScreenState extends State<MainContainerScreen> with WidgetsB
                               tx.title.isEmpty ? tx.category : tx.title,
                               style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
                             ),
-                            subtitle: Text(
-                              '${tx.category} • ${tx.wallet}',
-                              style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                            subtitle: Row(
+                              children: [
+                                Text(tx.category, style: TextStyle(fontSize: 11, color: Colors.grey[600])),
+                                const SizedBox(width: 6),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                                  decoration: BoxDecoration(
+                                    color: isDigital ? const Color(0xFFE0F2FE) : const Color(0xFFFEF3C7),
+                                    borderRadius: BorderRadius.circular(4),
+                                    border: Border.all(color: isDigital ? const Color(0xFF38BDF8) : const Color(0xFFF59E0B), width: 0.5),
+                                  ),
+                                  child: Text(
+                                    tx.wallet,
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                      color: isDigital ? const Color(0xFF0369A1) : const Color(0xFF92400E),
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                             trailing: Text(
                               '${tx.isExpense ? '-' : '+'}${formatRp(tx.amount)}',
@@ -723,6 +769,28 @@ class _MainContainerScreenState extends State<MainContainerScreen> with WidgetsB
                 ),
         ),
       ],
+    );
+  }
+
+  Widget _buildWalletFilterChip(String label) {
+    final isSelected = _selectedWalletFilter == label;
+    return GestureDetector(
+      onTap: () => setState(() => _selectedWalletFilter = label),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFF064E3B) : Colors.black.withOpacity(0.06),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+            color: isSelected ? Colors.white : const Color(0xFF064E3B),
+          ),
+        ),
+      ),
     );
   }
 
@@ -1704,6 +1772,10 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       Icons.music_note,
       Icons.work,
       Icons.savings,
+      Icons.school,
+      Icons.pets,
+      Icons.shopping_cart,
+      Icons.wallet,
     ];
 
     showDialog(
@@ -1711,7 +1783,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) {
           return AlertDialog(
-            title: const Text('Tambah / Kustomisasi Kategori'),
+            title: const Text('Tambah Kategori Baru'),
             content: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -1813,11 +1885,11 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                       children: [
                         CircleAvatar(
                           radius: 26,
-                          backgroundColor: Colors.grey[200],
-                          child: const Icon(Icons.add, color: Colors.grey),
+                          backgroundColor: const Color(0xFFDCFCE7),
+                          child: const Icon(Icons.add, color: Color(0xFF16A34A)),
                         ),
                         const SizedBox(height: 6),
-                        const Text('Pengaturan', style: TextStyle(fontSize: 11), overflow: TextOverflow.ellipsis),
+                        const Text('+ Kategori', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF16A34A)), overflow: TextOverflow.ellipsis),
                       ],
                     ),
                   );
@@ -1976,8 +2048,7 @@ class InputTransactionBottomSheet extends StatefulWidget {
 class _InputTransactionBottomSheetState extends State<InputTransactionBottomSheet> {
   final _amountCtrl = TextEditingController();
   final _titleCtrl = TextEditingController();
-  String _wallet = 'Tunai';
-  final _wallets = ['Tunai', 'Rekening Bank', 'E-Wallet'];
+  String _wallet = 'Tunai'; // 'Tunai' atau 'Digital'
   DateTime _transactionDate = DateTime.now();
 
   @override
@@ -2026,11 +2097,51 @@ class _InputTransactionBottomSheetState extends State<InputTransactionBottomShee
             ),
           ),
           const SizedBox(height: 12),
-          DropdownButtonFormField<String>(
-            value: _wallet,
-            decoration: const InputDecoration(labelText: 'Pilih Dompet / Akun', border: OutlineInputBorder()),
-            items: _wallets.map((w) => DropdownMenuItem(value: w, child: Text(w))).toList(),
-            onChanged: (v) => setState(() => _wallet = v!),
+          // Pilihan Dompet: Tunai vs Digital
+          const Text('Pilih Dompet / Akun Sumber Dana:', style: TextStyle(fontSize: 12, color: Colors.grey)),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    backgroundColor: _wallet == 'Tunai' ? const Color(0xFFFEF3C7) : Colors.transparent,
+                    side: BorderSide(color: _wallet == 'Tunai' ? const Color(0xFFD97706) : Colors.grey.shade300, width: _wallet == 'Tunai' ? 2 : 1),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  onPressed: () => setState(() => _wallet = 'Tunai'),
+                  icon: const Icon(Icons.payments_outlined, color: Color(0xFFB45309), size: 18),
+                  label: Text(
+                    'Tunai (Cash)',
+                    style: TextStyle(
+                      fontWeight: _wallet == 'Tunai' ? FontWeight.bold : FontWeight.normal,
+                      color: _wallet == 'Tunai' ? const Color(0xFF92400E) : Colors.grey.shade700,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    backgroundColor: _wallet == 'Digital' ? const Color(0xFFE0F2FE) : Colors.transparent,
+                    side: BorderSide(color: _wallet == 'Digital' ? const Color(0xFF0284C7) : Colors.grey.shade300, width: _wallet == 'Digital' ? 2 : 1),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  onPressed: () => setState(() => _wallet = 'Digital'),
+                  icon: const Icon(Icons.account_balance_wallet_outlined, color: Color(0xFF0284C7), size: 18),
+                  label: Text(
+                    'Digital (Bank/E-W)',
+                    style: TextStyle(
+                      fontWeight: _wallet == 'Digital' ? FontWeight.bold : FontWeight.normal,
+                      color: _wallet == 'Digital' ? const Color(0xFF0369A1) : Colors.grey.shade700,
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 12),
           // Pemilih Tanggal Bebas (Date & Time Picker)
@@ -2113,8 +2224,8 @@ class _InputTransactionBottomSheetState extends State<InputTransactionBottomShee
   }
 }
 
-// ---------------- TAB 3: LAPORAN ----------------
-class ExportReportScreen extends StatelessWidget {
+// ---------------- TAB 3: LAPORAN (FORMAT 1 DENGAN FILTER RENTANG WAKTU) ----------------
+class ExportReportScreen extends StatefulWidget {
   final List<Transaction> transactions;
   final DateTime selectedMonth;
   final String Function(double) formatRp;
@@ -2126,14 +2237,208 @@ class ExportReportScreen extends StatelessWidget {
     required this.formatRp,
   });
 
+  @override
+  State<ExportReportScreen> createState() => _ExportReportScreenState();
+}
+
+class _ExportReportScreenState extends State<ExportReportScreen> {
+  int _filterMode = 0; // 0: Bulan Ini, 1: Pilih Bulan, 2: Kustom Tanggal, 3: Semua Riwayat
+  DateTime _filterMonth = DateTime.now();
+  DateTimeRange? _customDateRange;
+
+  List<Transaction> get _filteredTransactions {
+    final now = DateTime.now();
+    List<Transaction> result = [];
+
+    if (_filterMode == 0) {
+      result = widget.transactions.where((tx) =>
+        tx.date.year == now.year && tx.date.month == now.month
+      ).toList();
+    } else if (_filterMode == 1) {
+      result = widget.transactions.where((tx) =>
+        tx.date.year == _filterMonth.year && tx.date.month == _filterMonth.month
+      ).toList();
+    } else if (_filterMode == 2) {
+      if (_customDateRange == null) {
+        result = List<Transaction>.from(widget.transactions);
+      } else {
+        final start = DateTime(_customDateRange!.start.year, _customDateRange!.start.month, _customDateRange!.start.day, 0, 0, 0);
+        final end = DateTime(_customDateRange!.end.year, _customDateRange!.end.month, _customDateRange!.end.day, 23, 59, 59);
+        result = widget.transactions.where((tx) =>
+          tx.date.isAfter(start.subtract(const Duration(seconds: 1))) &&
+          tx.date.isBefore(end.add(const Duration(seconds: 1)))
+        ).toList();
+      }
+    } else {
+      result = List<Transaction>.from(widget.transactions);
+    }
+
+    result.sort((a, b) => a.date.compareTo(b.date));
+    return result;
+  }
+
+  String get _periodLabel {
+    const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+    if (_filterMode == 0) {
+      final now = DateTime.now();
+      return 'Bulan Ini (${months[now.month - 1]} ${now.year})';
+    } else if (_filterMode == 1) {
+      return '${months[_filterMonth.month - 1]} ${_filterMonth.year}';
+    } else if (_filterMode == 2) {
+      if (_customDateRange == null) return 'Rentang Kustom';
+      return '${DateFormat('dd/MM/yyyy').format(_customDateRange!.start)} – ${DateFormat('dd/MM/yyyy').format(_customDateRange!.end)}';
+    } else {
+      return 'Semua Riwayat (Sepanjang Waktu)';
+    }
+  }
+
+  void _showPeriodPickerDialog() {
+    int tempMode = _filterMode;
+    DateTime tempMonth = _filterMonth;
+    DateTimeRange? tempRange = _customDateRange;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) {
+            return Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2)),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text('Pilih Periode Ekspor Laporan', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 4),
+                  const Text('Laporan Format 1 akan dihitung berdasarkan rentang waktu ini:', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                  const SizedBox(height: 16),
+                  RadioListTile<int>(
+                    value: 0,
+                    groupValue: tempMode,
+                    activeColor: const Color(0xFF16A34A),
+                    title: const Text('Bulan Ini (Default)', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                    subtitle: Text('Transaksi di bulan berjalan (${DateFormat('MMMM yyyy').format(DateTime.now())})', style: const TextStyle(fontSize: 12)),
+                    onChanged: (val) => setDialogState(() => tempMode = val!),
+                  ),
+                  RadioListTile<int>(
+                    value: 1,
+                    groupValue: tempMode,
+                    activeColor: const Color(0xFF16A34A),
+                    title: const Text('Pilih Bulan Spesifik', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                    subtitle: Text('Bulan terpilih: ${DateFormat('MMMM yyyy').format(tempMonth)}', style: const TextStyle(fontSize: 12)),
+                    secondary: IconButton(
+                      icon: const Icon(Icons.calendar_month, color: Color(0xFF16A34A)),
+                      onPressed: () async {
+                        final picked = await showDatePicker(
+                          context: context,
+                          initialDate: tempMonth,
+                          firstDate: DateTime(2020),
+                          lastDate: DateTime(2050),
+                          helpText: 'PILIH BULAN (PILIH TANGGAL BEBAS DI BULAN ITU)',
+                        );
+                        if (picked != null) {
+                          setDialogState(() {
+                            tempMode = 1;
+                            tempMonth = DateTime(picked.year, picked.month, 1);
+                          });
+                        }
+                      },
+                    ),
+                    onChanged: (val) => setDialogState(() => tempMode = val!),
+                  ),
+                  RadioListTile<int>(
+                    value: 2,
+                    groupValue: tempMode,
+                    activeColor: const Color(0xFF16A34A),
+                    title: const Text('Kustom Rentang Tanggal', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                    subtitle: Text(
+                      tempRange == null
+                          ? 'Ketuk kalender untuk menentukan tgl mulai & akhir'
+                          : '${DateFormat('dd/MM/yyyy').format(tempRange!.start)} s/d ${DateFormat('dd/MM/yyyy').format(tempRange!.end)}',
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                    secondary: IconButton(
+                      icon: const Icon(Icons.date_range, color: Color(0xFF16A34A)),
+                      onPressed: () async {
+                        final range = await showDateRangePicker(
+                          context: context,
+                          firstDate: DateTime(2020),
+                          lastDate: DateTime(2050),
+                          initialDateRange: tempRange ?? DateTimeRange(
+                            start: DateTime.now().subtract(const Duration(days: 7)),
+                            end: DateTime.now(),
+                          ),
+                        );
+                        if (range != null) {
+                          setDialogState(() {
+                            tempMode = 2;
+                            tempRange = range;
+                          });
+                        }
+                      },
+                    ),
+                    onChanged: (val) => setDialogState(() => tempMode = val!),
+                  ),
+                  RadioListTile<int>(
+                    value: 3,
+                    groupValue: tempMode,
+                    activeColor: const Color(0xFF16A34A),
+                    title: const Text('Semua Riwayat (All-Time)', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                    subtitle: const Text('Seluruh transaksi dari awal s/d saat ini', style: TextStyle(fontSize: 12)),
+                    onChanged: (val) => setDialogState(() => tempMode = val!),
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF16A34A),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          _filterMode = tempMode;
+                          _filterMonth = tempMonth;
+                          _customDateRange = tempRange;
+                        });
+                        Navigator.pop(ctx);
+                      },
+                      child: const Text('Terapkan Periode', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   Future<void> _exportSpreadsheet(BuildContext context) async {
+    final list = _filteredTransactions;
     final csv = StringBuffer();
     csv.writeln('ID,Tanggal,Tipe,Kategori,Dompet,Catatan,Nominal');
 
-    for (var tx in transactions) {
+    for (var tx in list) {
       final type = tx.isExpense ? 'Pengeluaran' : 'Pemasukan';
       final dateStr = DateFormat('yyyy-MM-dd HH:mm').format(tx.date);
-      csv.writeln('"${tx.id}","$dateStr","$type","${tx.category}","${tx.wallet}","${tx.title.replaceAll('"', '""')}",${tx.amount}');
+      final safeTitle = tx.title.replaceAll('"', '""');
+      csv.writeln('"${tx.id}","$dateStr","$type","${tx.category}","${tx.wallet}","$safeTitle",${tx.amount}');
     }
 
     try {
@@ -2143,7 +2448,7 @@ class ExportReportScreen extends StatelessWidget {
 
       await Share.shareXFiles(
         [XFile(file.path)],
-        text: 'Laporan Keuangan MT (Spreadsheet CSV) by Natanael',
+        text: 'Laporan Keuangan MT (Spreadsheet CSV) Periode $_periodLabel',
       );
     } catch (e) {
       await Clipboard.setData(ClipboardData(text: csv.toString()));
@@ -2156,42 +2461,156 @@ class ExportReportScreen extends StatelessWidget {
   }
 
   Future<void> _exportDocument(BuildContext context) async {
-    final double totalIncome = transactions.where((t) => !t.isExpense).fold(0.0, (s, t) => s + t.amount);
-    final double totalExpense = transactions.where((t) => t.isExpense).fold(0.0, (s, t) => s + t.amount);
+    final list = _filteredTransactions;
+
+    final double totalIncome = list.where((t) => !t.isExpense).fold(0.0, (s, t) => s + t.amount);
+    final double totalExpense = list.where((t) => t.isExpense).fold(0.0, (s, t) => s + t.amount);
     final double balance = totalIncome - totalExpense;
+    final double savingsRate = totalIncome > 0 ? (balance / totalIncome * 100) : 0.0;
+
+    int totalDays = 1;
+    if (list.isNotEmpty) {
+      final firstDate = list.first.date;
+      final lastDate = list.last.date;
+      totalDays = lastDate.difference(firstDate).inDays + 1;
+      if (totalDays < 1) totalDays = 1;
+    }
+    final double dailyBurn = totalExpense / totalDays;
+
+    final Map<String, double> expCategories = {};
+    for (var tx in list.where((t) => t.isExpense)) {
+      expCategories[tx.category] = (expCategories[tx.category] ?? 0.0) + tx.amount;
+    }
+    final sortedExpCat = expCategories.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+
+    double incTunai = 0, expTunai = 0;
+    double incDigital = 0, expDigital = 0;
+    for (var tx in list) {
+      final isDigital = tx.wallet.toLowerCase() == 'digital' || tx.wallet.toLowerCase() == 'e-wallet' || tx.wallet.toLowerCase() == 'rekening bank';
+      if (isDigital) {
+        if (tx.isExpense) expDigital += tx.amount; else incDigital += tx.amount;
+      } else {
+        if (tx.isExpense) expTunai += tx.amount; else incTunai += tx.amount;
+      }
+    }
+    final balTunai = incTunai - expTunai;
+    final balDigital = incDigital - expDigital;
 
     final doc = StringBuffer();
-    doc.writeln('<html><head><meta charset="utf-8"><title>Laporan Keuangan MT by Natanael</title>');
+    doc.writeln('<!DOCTYPE html><html><head><meta charset="utf-8">');
+    doc.writeln('<title>Laporan Keuangan MT by Natanael</title>');
     doc.writeln('<style>');
-    doc.writeln('body { font-family: sans-serif; padding: 20px; color: #1E293B; }');
-    doc.writeln('h1 { color: #15803D; margin-bottom: 4px; }');
-    doc.writeln('.sub { color: #64748B; font-size: 13px; margin-bottom: 20px; }');
-    doc.writeln('.card { background-color: #F0FDF4; border: 1px solid #BBF7D0; border-radius: 8px; padding: 15px; margin-bottom: 25px; }');
-    doc.writeln('table { width: 100%; border-collapse: collapse; margin-top: 15px; }');
-    doc.writeln('th, td { border: 1px solid #E2E8F0; padding: 8px; text-align: left; font-size: 13px; }');
-    doc.writeln('th { background-color: #86EFAC; color: #064E3B; }');
+    doc.writeln('body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; padding: 24px; color: #0F172A; background-color: #FFFFFF; line-height: 1.4; }');
+    doc.writeln('.header-title { font-size: 22px; font-weight: 800; color: #0F172A; margin: 0 0 4px 0; text-transform: uppercase; letter-spacing: 0.5px; }');
+    doc.writeln('.header-sub { font-size: 11px; color: #475569; margin-bottom: 12px; }');
+    doc.writeln('.divider { border: 0; height: 2px; background: #0284C7; margin-bottom: 16px; }');
+    doc.writeln('.kpi-grid { display: table; width: 100%; border-collapse: collapse; margin-bottom: 16px; background-color: #F8FAFC; border: 1px solid #CBD5E1; border-radius: 8px; overflow: hidden; }');
+    doc.writeln('.kpi-cell { display: table-cell; width: 25%; padding: 12px 14px; border-right: 1px solid #CBD5E1; vertical-align: middle; }');
+    doc.writeln('.kpi-cell:last-child { border-right: none; }');
+    doc.writeln('.kpi-label { font-size: 9px; font-weight: 700; color: #475569; text-transform: uppercase; margin-bottom: 4px; }');
+    doc.writeln('.kpi-val { font-size: 15px; font-weight: 800; }');
+    doc.writeln('.text-green { color: #059669; }');
+    doc.writeln('.text-red { color: #DC2626; }');
+    doc.writeln('.text-blue { color: #0284C7; }');
+    doc.writeln('.text-dark { color: #0F172A; }');
+    doc.writeln('.sec-title { font-size: 13px; font-weight: 800; color: #0F172A; margin: 18px 0 8px 0; }');
+    doc.writeln('.analysis-box { background-color: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 12px 14px; font-size: 11px; margin-bottom: 18px; }');
+    doc.writeln('.analysis-box p { margin: 4px 0; }');
+    doc.writeln('table { width: 100%; border-collapse: collapse; margin-top: 6px; font-size: 11px; }');
+    doc.writeln('th { background-color: #1E293B; color: #FFFFFF; font-weight: 700; text-align: left; padding: 7px 8px; font-size: 10px; }');
+    doc.writeln('td { border: 1px solid #E2E8F0; padding: 6px 8px; }');
     doc.writeln('tr:nth-child(even) { background-color: #F8FAFC; }');
-    doc.writeln('.income { color: #16A34A; font-weight: bold; }');
-    doc.writeln('.expense { color: #DC2626; font-weight: bold; }');
+    doc.writeln('.badge-tunai { display: inline-block; padding: 2px 6px; font-size: 9px; font-weight: 700; color: #92400E; background-color: #FEF3C7; border: 1px solid #F59E0B; border-radius: 4px; }');
+    doc.writeln('.badge-digital { display: inline-block; padding: 2px 6px; font-size: 9px; font-weight: 700; color: #0369A1; background-color: #E0F2FE; border: 1px solid #38BDF8; border-radius: 4px; }');
+    doc.writeln('.table-side { display: table; width: 100%; margin-bottom: 18px; }');
+    doc.writeln('.table-col { display: table-cell; width: 48%; vertical-align: top; }');
+    doc.writeln('.table-col-space { display: table-cell; width: 4%; }');
     doc.writeln('</style></head><body>');
-    doc.writeln('<h1>Money Tracker (MT)</h1>');
-    doc.writeln('<div class="sub">Laporan Arus Kas • Dibuat oleh: Natanael • Tanggal: ${DateFormat('dd MMMM yyyy HH:mm').format(DateTime.now())}</div>');
-    doc.writeln('<div class="card">');
-    doc.writeln('<p><strong>Total Pemasukan:</strong> Rp ${formatRp(totalIncome)}</p>');
-    doc.writeln('<p><strong>Total Pengeluaran:</strong> Rp ${formatRp(totalExpense)}</p>');
-    doc.writeln('<p><strong>Total Saldo Akhir:</strong> Rp ${formatRp(balance)}</p>');
-    doc.writeln('</div>');
-    doc.writeln('<h3>Rincian Riwayat Transaksi</h3>');
-    doc.writeln('<table><tr><th>Tanggal</th><th>Tipe</th><th>Kategori</th><th>Dompet</th><th>Catatan</th><th>Nominal</th></tr>');
 
-    for (var tx in transactions) {
-      final type = tx.isExpense ? 'Pengeluaran' : 'Pemasukan';
-      final typeClass = tx.isExpense ? 'expense' : 'income';
-      final dateStr = DateFormat('dd/MM/yyyy HH:mm').format(tx.date);
-      doc.writeln('<tr><td>$dateStr</td><td class="$typeClass">$type</td><td>${tx.category}</td><td>${tx.wallet}</td><td>${tx.title.isEmpty ? '-' : tx.title}</td><td>Rp ${formatRp(tx.amount)}</td></tr>');
+    doc.writeln('<div class="header-title">Laporan Arus Kas &amp; Analisis Keuangan</div>');
+    doc.writeln('<div class="header-sub"><b>Aplikasi:</b> Money Tracker (MT) &nbsp;•&nbsp; <b>Periode:</b> $totalDays Hari ($periodLabel) &nbsp;•&nbsp; <b>Pengguna:</b> Natanael &nbsp;•&nbsp; <b>Dibuat:</b> ${DateFormat("dd/MM/yyyy HH:mm").format(DateTime.now())}</div>');
+    doc.writeln('<hr class="divider">');
+
+    doc.writeln('<div class="kpi-grid">');
+    doc.writeln('<div class="kpi-cell"><div class="kpi-label">Total Pemasukan</div><div class="kpi-val text-green">Rp ${widget.formatRp(totalIncome)}</div></div>');
+    doc.writeln('<div class="kpi-cell"><div class="kpi-label">Total Pengeluaran</div><div class="kpi-val text-red">Rp ${widget.formatRp(totalExpense)}</div></div>');
+    doc.writeln('<div class="kpi-cell"><div class="kpi-label">Saldo Bersih (Surplus)</div><div class="kpi-val text-dark">Rp ${widget.formatRp(balance)}</div></div>');
+    doc.writeln('<div class="kpi-cell"><div class="kpi-label">Savings Rate (Rasio Simpan)</div><div class="kpi-val text-blue">${savingsRate.toStringAsFixed(1)}%</div></div>');
+    doc.writeln('</div>');
+
+    doc.writeln('<div class="sec-title">Ringkasan Analisis Finansial Sistematis</div>');
+    doc.writeln('<div class="analysis-box">');
+    doc.writeln('<p><b>1. Kesehatan Arus Kas:</b> Posisi keuangan periode ini berada dalam kondisi <b>${balance >= 0 ? "Surplus Sehat" : "Defisit"}</b> dengan rasio simpanan <b>${savingsRate.toStringAsFixed(1)}%</b>. Total pemasukan Rp ${widget.formatRp(totalIncome)} mampu menutup pengeluaran Rp ${widget.formatRp(totalExpense)}.</p>');
+    doc.writeln('<p><b>2. Laju Pengeluaran Harian (Daily Burn Rate):</b> Rata-rata pengeluaran tercatat sebesar <b>Rp ${widget.formatRp(dailyBurn)}/hari</b> selama rentang $totalDays hari aktif.</p>');
+
+    String top3Text = 'Belum ada data pengeluaran.';
+    if (sortedExpCat.isNotEmpty) {
+      final topItems = sortedExpCat.take(3).map((e) {
+        final p = totalExpense > 0 ? (e.value / totalExpense * 100).toStringAsFixed(1) : '0';
+        return '<b>${e.key} (${p}%)</b>';
+      }).join(', ');
+      top3Text = 'Pos pengeluaran terbesar terkonsentrasi pada: $topItems.';
+    }
+    doc.writeln('<p><b>3. Konsentrasi Beban:</b> $top3Text</p>');
+
+    final pctTunai = balance != 0 ? (balTunai / balance * 100).toStringAsFixed(1) : '0';
+    final pctDigital = balance != 0 ? (balDigital / balance * 100).toStringAsFixed(1) : '0';
+    doc.writeln('<p><b>4. Alokasi Likuiditas Dompet:</b> Kas Tunai menyumbang <b>$pctTunai%</b> (Rp ${widget.formatRp(balTunai)}) dan Digital menyumbang <b>$pctDigital%</b> (Rp ${widget.formatRp(balDigital)}) dari total akumulasi saldo akhir.</p>');
+    doc.writeln('</div>');
+
+    doc.writeln('<div class="sec-title">Rekapitulasi Kategori &amp; Distribusi Dompet</div>');
+    doc.writeln('<div class="table-side">');
+
+    doc.writeln('<div class="table-col">');
+    doc.writeln('<table>');
+    doc.writeln('<tr><th>Kategori Pengeluaran</th><th>Total (Rp)</th><th>Porsi (%)</th></tr>');
+    for (var entry in sortedExpCat) {
+      final p = totalExpense > 0 ? (entry.value / totalExpense * 100).toStringAsFixed(1) : '0.0';
+      doc.writeln('<tr><td>${entry.key}</td><td>Rp ${widget.formatRp(entry.value)}</td><td>$p%</td></tr>');
+    }
+    doc.writeln('<tr style="font-weight:bold; background-color:#E2E8F0;"><td>Total Beban</td><td>Rp ${widget.formatRp(totalExpense)}</td><td>100%</td></tr>');
+    doc.writeln('</table>');
+    doc.writeln('</div>');
+
+    doc.writeln('<div class="table-col-space"></div>');
+
+    doc.writeln('<div class="table-col">');
+    doc.writeln('<table>');
+    doc.writeln('<tr><th>Dompet / Akun</th><th>Pemasukan</th><th>Pengeluaran</th><th>Saldo Akhir</th></tr>');
+    doc.writeln('<tr><td><b>Tunai (Cash)</b></td><td class="text-green">Rp ${widget.formatRp(incTunai)}</td><td class="text-red">Rp ${widget.formatRp(expTunai)}</td><td><b>Rp ${widget.formatRp(balTunai)}</b></td></tr>');
+    doc.writeln('<tr><td><b>Digital (Bank/EW)</b></td><td class="text-green">Rp ${widget.formatRp(incDigital)}</td><td class="text-red">Rp ${widget.formatRp(expDigital)}</td><td><b>Rp ${widget.formatRp(balDigital)}</b></td></tr>');
+    doc.writeln('<tr style="font-weight:bold; background-color:#E2E8F0;"><td>Total Akumulasi</td><td class="text-green">Rp ${widget.formatRp(totalIncome)}</td><td class="text-red">Rp ${widget.formatRp(totalExpense)}</td><td>Rp ${widget.formatRp(balance)}</td></tr>');
+    doc.writeln('</table>');
+    doc.writeln('</div>');
+
+    doc.writeln('</div>');
+
+    doc.writeln('<div class="sec-title">Rincian Riwayat Transaksi (Format 1: Rekening Koran &amp; Saldo Berjalan)</div>');
+    doc.writeln('<table>');
+    doc.writeln('<tr><th style="width:18%;">Tanggal &amp; Waktu</th><th style="width:12%;">Dompet</th><th>Kategori &amp; Keterangan</th><th style="width:16%;">Pemasukan (+)</th><th style="width:16%;">Pengeluaran (-)</th><th style="width:17%;">Saldo Berjalan</th></tr>');
+
+    double runningBalance = 0.0;
+    for (var tx in list) {
+      if (!tx.isExpense) {
+        runningBalance += tx.amount;
+      } else {
+        runningBalance -= tx.amount;
+      }
+
+      final isDigital = tx.wallet.toLowerCase() == 'digital' || tx.wallet.toLowerCase() == 'e-wallet' || tx.wallet.toLowerCase() == 'rekening bank';
+      final badgeHtml = isDigital ? '<span class="badge-digital">Digital</span>' : '<span class="badge-tunai">Tunai</span>';
+      final dateStr = DateFormat("dd/MM/yyyy HH:mm").format(tx.date);
+      final desc = tx.title.isEmpty ? tx.category : '${tx.category} • <span style="color:#64748B;">${tx.title}</span>';
+
+      final incStr = !tx.isExpense ? '<span class="text-green">+ Rp ${widget.formatRp(tx.amount)}</span>' : '—';
+      final expStr = tx.isExpense ? '<span class="text-red">- Rp ${widget.formatRp(tx.amount)}</span>' : '—';
+      final balStr = '<b>Rp ${widget.formatRp(runningBalance)}</b>';
+
+      doc.writeln('<tr><td>$dateStr</td><td>$badgeHtml</td><td>$desc</td><td>$incStr</td><td>$expStr</td><td>$balStr</td></tr>');
     }
 
-    doc.writeln('</table></body></html>');
+    doc.writeln('</table>');
+    doc.writeln('</body></html>');
 
     try {
       final dir = await getTemporaryDirectory();
@@ -2200,13 +2619,13 @@ class ExportReportScreen extends StatelessWidget {
 
       await Share.shareXFiles(
         [XFile(file.path)],
-        text: 'Laporan Keuangan MT (Dokumen Word / Office) by Natanael',
+        text: 'Laporan Keuangan MT (Format 1 - Periode $_periodLabel) by Natanael',
       );
     } catch (e) {
       await Clipboard.setData(ClipboardData(text: doc.toString()));
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Laporan Dokumen berhasil disalin ke clipboard!')),
+          const SnackBar(content: Text('Laporan Format 1 berhasil disalin ke clipboard!')),
         );
       }
     }
@@ -2214,13 +2633,18 @@ class ExportReportScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final filtered = _filteredTransactions;
+    final double inc = filtered.where((t) => !t.isExpense).fold(0.0, (s, t) => s + t.amount);
+    final double exp = filtered.where((t) => t.isExpense).fold(0.0, (s, t) => s + t.amount);
+    final double bal = inc - exp;
+
     return Scaffold(
       appBar: AppBar(
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: const [
-            Text('Ekspor Laporan', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-            Text('Money Tracker MT by Natanael', style: TextStyle(fontSize: 11, color: Color(0xFF065F46))),
+            Text('Ekspor Laporan Format 1', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+            Text('Money Tracker MT by Natanael', style: TextStyle(fontSize: 11, color: Color(0xFF064E3B))),
           ],
         ),
       ),
@@ -2229,22 +2653,61 @@ class ExportReportScreen extends StatelessWidget {
         children: [
           Card(
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            elevation: 1,
+            color: const Color(0xFFDCFCE7).withOpacity(0.5),
+            elevation: 0,
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Ringkasan Data', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                  const SizedBox(height: 8),
-                  Text('Total transaksi tersimpan: ${transactions.length} transaksi.', style: TextStyle(color: Colors.grey[600], fontSize: 13)),
-                  const SizedBox(height: 4),
-                  const Text('Data dapat diekspor langsung ke spreadsheet atau dokumen untuk dibagikan / dibuka di Excel dan Word.', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('PERIODE LAPORAN', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF065F46))),
+                      OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFF16A34A),
+                          side: const BorderSide(color: Color(0xFF16A34A)),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                        ),
+                        onPressed: _showPeriodPickerDialog,
+                        icon: const Icon(Icons.tune, size: 16),
+                        label: const Text('Ubah Periode', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Text(_periodLabel, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: Color(0xFF064E3B))),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text('${filtered.length} Transaksi Terpilih', style: TextStyle(fontSize: 12, color: Colors.grey[700])),
+                      ),
+                      Text('Net: ${bal >= 0 ? "+" : ""}${widget.formatRp(bal)}', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: bal >= 0 ? const Color(0xFF047857) : Colors.red)),
+                    ],
+                  ),
                 ],
               ),
             ),
           ),
           const SizedBox(height: 16),
+          Card(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            elevation: 2,
+            child: ListTile(
+              leading: const CircleAvatar(
+                backgroundColor: Color(0xFFDBEAFE),
+                child: Icon(Icons.description, color: Color(0xFF2563EB)),
+              ),
+              title: const Text('Ekspor Dokumen Format 1 (.doc / Word)', style: TextStyle(fontWeight: FontWeight.bold)),
+              subtitle: const Text('Lengkap: KPI, Analisis Cerdas, Rekapitulasi & Saldo Berjalan', style: TextStyle(fontSize: 12)),
+              trailing: const Icon(Icons.share, color: Color(0xFF2563EB)),
+              onTap: () => _exportDocument(context),
+            ),
+          ),
+          const SizedBox(height: 12),
           Card(
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             child: ListTile(
@@ -2253,23 +2716,28 @@ class ExportReportScreen extends StatelessWidget {
                 child: Icon(Icons.table_chart, color: Color(0xFF16A34A)),
               ),
               title: const Text('Ekspor File Spreadsheet (.csv)', style: TextStyle(fontWeight: FontWeight.bold)),
-              subtitle: const Text('Kompatibel dengan Microsoft Excel & Google Sheets', style: TextStyle(fontSize: 12)),
+              subtitle: const Text('Data mentah terfilter untuk Microsoft Excel & Google Sheets', style: TextStyle(fontSize: 12)),
               trailing: const Icon(Icons.share, color: Color(0xFF16A34A)),
               onTap: () => _exportSpreadsheet(context),
             ),
           ),
-          const SizedBox(height: 12),
-          Card(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            child: ListTile(
-              leading: const CircleAvatar(
-                backgroundColor: Color(0xFFDBEAFE),
-                child: Icon(Icons.description, color: Color(0xFF2563EB)),
-              ),
-              title: const Text('Ekspor File Dokumen (.doc / Word)', style: TextStyle(fontWeight: FontWeight.bold)),
-              subtitle: const Text('Laporan berformat tabel rapi untuk Microsoft Word & WPS Office', style: TextStyle(fontSize: 12)),
-              trailing: const Icon(Icons.share, color: Color(0xFF2563EB)),
-              onTap: () => _exportDocument(context),
+          const SizedBox(height: 20),
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.grey[100],
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.grey.shade300),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: const [
+                Text('Keunggulan Format 1:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                SizedBox(height: 4),
+                Text('• Kolom Pemasukan dan Pengeluaran dipisah total (tidak bertumpuk).', style: TextStyle(fontSize: 11, color: Colors.black87)),
+                Text('• Menampilkan Saldo Berjalan (Running Balance) di setiap baris transaksi.', style: TextStyle(fontSize: 11, color: Colors.black87)),
+                Text('• Dilengkapi ringkasan KPI, analisis finansial otomatis, dan rekapitulasi dompet Tunai vs Digital.', style: TextStyle(fontSize: 11, color: Colors.black87)),
+              ],
             ),
           ),
         ],
@@ -2370,7 +2838,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   const SizedBox(height: 2),
                   const Text('by Natanael', style: TextStyle(fontSize: 13, color: Color(0xFF16A34A), fontWeight: FontWeight.bold)),
                   const SizedBox(height: 10),
-                  Text('Versi 2.2.0 • 100% Offline', style: TextStyle(fontSize: 11, color: Colors.grey[600])),
+                  Text('Versi 2.5.0 • 100% Offline', style: TextStyle(fontSize: 11, color: Colors.grey[600])),
                 ],
               ),
             ),
@@ -2569,3 +3037,4 @@ class CleanWeeklyBarPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
+
